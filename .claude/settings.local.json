@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \":*)",
+      "Bash(npx tsc:*)",
+      "Bash(cmd /c \"cd C:\\\\Users\\\\Asus\\\\Desktop\\\\dynamicpricing\\\\frontend && npx tsc --noEmit --skipLibCheck 2>&1\")",
+      "Bash(cmd /c \"cd /d C:\\\\Users\\\\Asus\\\\Desktop\\\\dynamicpricing\\\\frontend && npx tsc --noEmit --skipLibCheck\" 2>&1)",
+      "Bash(cmd /c \"cd /d C:\\\\Users\\\\Asus\\\\Desktop\\\\dynamicpricing\\\\frontend && npx tsc --noEmit --skipLibCheck 2>&1 && echo NO_ERRORS\")",
+      "Bash(powershell -Command \"Set-Location 'C:\\\\Users\\\\Asus\\\\Desktop\\\\dynamicpricing\\\\frontend'; npx tsc --noEmit --skipLibCheck 2>&1; Write-Host 'EXIT:' $LASTEXITCODE\")",
+      "Bash(powershell -Command \"cd 'C:\\\\Users\\\\Asus\\\\Desktop\\\\dynamicpricing\\\\frontend'; $result = npx tsc --noEmit --skipLibCheck 2>&1; if \\($result\\) { $result } else { 'No TypeScript errors' }\")",
+      "Bash(powershell -Command \"cd 'C:\\\\Users\\\\Asus\\\\Desktop\\\\dynamicpricing\\\\frontend'; npx tsc --noEmit --skipLibCheck 2>&1\")",
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(netstat -ano)",
+      "Bash(netstat -aon)",
+      "Bash(findstr \"8000\")",
+      "Bash(taskkill /F /IM python.exe)",
+      "Bash(taskkill /F /IM uvicorn.exe)",
+      "Bash(cmd /c \"cd C:\\\\Users\\\\Asus\\\\Desktop\\\\dynamicpricing\\\\frontend && npx tsc --noEmit 2>&1\")",
+      "Bash(cmd /c \"cd /d C:\\\\Users\\\\Asus\\\\Desktop\\\\dynamicpricing\\\\frontend && npx tsc --noEmit\")",
+      "Bash(find C:UsersAsusDesktophack -type f -name *.md -o -name *.txt -o -name *.env*)",
+      "Bash(find /c/Users/Asus/Desktop/hack/frontend/src -type f \\\\\\(-name *.jsx -o -name *.tsx -o -name *.ts -o -name *.js \\\\\\))",
+      "Bash(find /c/Users/Asus/Desktop/hack -not -path */node_modules/* -type d)",
+      "Bash(find /c/Users/Asus/Desktop/hack/frontend/src -type f \\\\\\(-name *.jsx -o -name *.js -o -name *.tsx -o -name *.ts -o -name *.css \\\\\\))",
+      "Bash(python -c \"from backend.main import app; print\\(''''App loaded successfully''''\\); print\\(''''Routes:''''\\); [print\\(f''''  {r.path} [{\"\",\"\".join\\(r.methods\\)}]''''\\) for r in app.routes if hasattr\\(r, ''''methods''''\\)]\")",
+      "Bash(python -c \"from backend.main import app; [print\\(f''''  {r.path} [{\"\",\"\".join\\(r.methods\\)}]''''\\) for r in app.routes if hasattr\\(r, ''''methods''''\\)]\")"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+sqlalchemy[asyncio]
+aiosqlite
+pydantic-settings
+python-jose[cryptography]
+passlib[bcrypt]
+redis
+aioredis
+pandas
+numpy
+python-multipart
+google-auth
