@@ -34,12 +34,22 @@ export const authService = {
 };
 
 export const productService = {
-  getProducts: async (category) => {
-    const response = await api.get('/products/', { params: { category } });
+  getProducts: async ({ category, search, min_price, max_price, sort } = {}) => {
+    const params = {};
+    if (category) params.category = category;
+    if (search) params.search = search;
+    if (min_price !== undefined && min_price !== '') params.min_price = min_price;
+    if (max_price !== undefined && max_price !== '') params.max_price = max_price;
+    if (sort) params.sort = sort;
+    const response = await api.get('/products/', { params });
     return response.data;
   },
   getProduct: async (id) => {
     const response = await api.get(`/products/${id}`);
+    return response.data;
+  },
+  getSuggestions: async (q) => {
+    const response = await api.get('/products/suggestions', { params: { q } });
     return response.data;
   },
   recordClick: async (id) => {
@@ -66,15 +76,11 @@ const getUserId = () => parseInt(localStorage.getItem('userId') || '1');
 export const cartService = {
   getCart: async () => {
     const userId = getUserId();
-    console.log("CART: loading cart for user", userId);
     const res = await fetch(`${CART_BASE}/cart/${userId}`);
     if (!res.ok) {
-      const text = await res.text();
-      console.error("GET CART FAILED:", res.status, text);
       return { items: [], grand_total: 0 };
     }
     const data = await res.json();
-    console.log("CART DATA:", data);
     return data;
   },
 
@@ -176,6 +182,26 @@ export const orderService = {
   cancelOrder: async (orderId) => {
     const response = await api.put(`/user/order/cancel/${orderId}`);
     return response.data;
+  },
+  downloadInvoice: async (orderId) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`/api/order/invoice/${orderId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      let msg = 'Failed to download invoice';
+      try { const j = await res.json(); msg = j.detail || msg; } catch {}
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `invoice_${orderId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
   },
 };
 

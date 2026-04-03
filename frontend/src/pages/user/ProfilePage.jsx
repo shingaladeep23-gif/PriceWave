@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import {
   orderService, cartService, addressService,
   wishlistService, profileService,
@@ -10,7 +11,7 @@ import {
   ShoppingBag, Package, TrendingUp, IndianRupee,
   ChevronDown, ChevronUp, RotateCcw, Loader2, UserCircle,
   CalendarDays, Tag, MapPin, Heart, Settings, Plus,
-  Edit3, Trash2, Check, X, ShoppingCart, Eye,
+  Edit3, Trash2, Check, X, ShoppingCart, Eye, FileText,
 } from 'lucide-react';
 
 const formatPrice = (price) =>
@@ -44,35 +45,32 @@ const AccountTab = ({ user, onProfileUpdated }) => {
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState('');
 
   const handleSave = async () => {
     setSaving(true);
-    setMsg('');
     try {
       const data = {};
       if (name !== (user?.name || '')) data.name = name;
       if (email !== user?.email) data.email = email;
       if (Object.keys(data).length === 0) {
-        setMsg('No changes to save.');
+        toast('No changes to save.');
         setSaving(false);
         return;
       }
       await profileService.updateProfile(data);
-      setMsg('Profile updated!');
+      toast.success('Profile updated!');
       if (onProfileUpdated) onProfileUpdated();
     } catch (err) {
-      setMsg(err.response?.data?.detail || 'Update failed');
+      toast.error(err.response?.data?.detail || 'Update failed');
     } finally {
       setSaving(false);
-      setTimeout(() => setMsg(''), 3000);
     }
   };
 
   return (
     <div>
       <h3 style={{ marginBottom: '1.25rem', fontWeight: 700 }}>Account Settings</h3>
-      <div className="card" style={{ maxWidth: 480, padding: '1.5rem' }}>
+      <div className="card" style={{ maxWidth: 480, padding: '1.5rem', transition: 'none', transform: 'none' }}>
         <div style={{ marginBottom: '1rem' }}>
           <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted)', marginBottom: '0.35rem', display: 'block' }}>Name</label>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" style={{ marginBottom: 0 }} />
@@ -86,7 +84,6 @@ const AccountTab = ({ user, onProfileUpdated }) => {
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
             Save Changes
           </button>
-          {msg && <span style={{ fontSize: '0.82rem', fontWeight: 600, color: msg.includes('updated') ? 'var(--success)' : 'var(--danger)' }}>{msg}</span>}
         </div>
         <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)', fontSize: '0.82rem', color: 'var(--muted)' }}>
           <div><strong>Role:</strong> {user?.role?.toUpperCase()}</div>
@@ -105,7 +102,7 @@ const AddressForm = ({ initial, onSave, onCancel, saving }) => {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   return (
-    <div className="card" style={{ padding: '1.25rem', border: '2px solid var(--primary)', marginBottom: '1rem' }}>
+    <div className="card" style={{ padding: '1.25rem', border: '2px solid var(--primary)', marginBottom: '1rem', transition: 'none', transform: 'none' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
         <input className="input" placeholder="Full Name" value={form.name} onChange={e => set('name', e.target.value)} style={{ marginBottom: 0 }} />
         <input className="input" placeholder="Phone" value={form.phone} onChange={e => set('phone', e.target.value)} style={{ marginBottom: 0 }} />
@@ -153,6 +150,7 @@ const AddressTab = ({ userId }) => {
       await addressService.addAddress({ ...form, user_id: userId });
       setShowForm(false);
       fetchAddresses();
+      toast.success('Address added');
     } catch { }
     setSaving(false);
   };
@@ -163,6 +161,7 @@ const AddressTab = ({ userId }) => {
       await addressService.updateAddress(editingId, form);
       setEditingId(null);
       fetchAddresses();
+      toast.success('Address updated');
     } catch { }
     setSaving(false);
   };
@@ -171,6 +170,7 @@ const AddressTab = ({ userId }) => {
     try {
       await addressService.deleteAddress(id);
       fetchAddresses();
+      toast('Address deleted', { icon: '🗑️' });
     } catch { }
   };
 
@@ -190,10 +190,13 @@ const AddressTab = ({ userId }) => {
       {showForm && <AddressForm onSave={handleAdd} onCancel={() => setShowForm(false)} saving={saving} />}
 
       {addresses.length === 0 && !showForm ? (
-        <div className="card" style={{ alignItems: 'center', padding: '3rem', textAlign: 'center', gap: '1rem' }}>
+        <div className="empty-state">
           <MapPin size={48} color="var(--muted)" />
-          <p style={{ fontWeight: 600, marginBottom: '0.25rem' }}>No addresses saved</p>
-          <p style={{ color: 'var(--muted)', fontSize: '0.875rem', margin: 0 }}>Add an address for faster checkout.</p>
+          <h3 style={{ margin: '0.5rem 0 0.25rem', fontWeight: 700 }}>No addresses saved</h3>
+          <p style={{ color: 'var(--muted)', margin: '0 0 1rem', fontSize: '0.9rem' }}>Add an address for faster checkout.</p>
+          <button onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', margin: '0 auto' }}>
+            <Plus size={16} /> Add Address
+          </button>
         </div>
       ) : (
         addresses.map(addr => (
@@ -236,21 +239,30 @@ const AddressTab = ({ userId }) => {
 const OrderCard = ({ order, onReorderDone }) => {
   const [expanded, setExpanded] = useState(false);
   const [reordering, setReordering] = useState(false);
-  const [reorderMsg, setReorderMsg] = useState('');
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadInvoice = async () => {
+    setDownloading(true);
+    try {
+      await orderService.downloadInvoice(order.order_id);
+      toast.success('Invoice downloaded');
+    } catch (err) {
+      toast.error(err.message || 'Failed to download invoice');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const handleReorder = async () => {
     setReordering(true);
-    setReorderMsg('');
     try {
       for (const item of order.items) {
         await cartService.addToCart(item.product_id, item.quantity);
       }
-      setReorderMsg('Added to cart!');
+      toast.success('Items added to cart');
       if (onReorderDone) onReorderDone();
-      setTimeout(() => setReorderMsg(''), 3000);
     } catch {
-      setReorderMsg('Failed to reorder.');
-      setTimeout(() => setReorderMsg(''), 3000);
+      toast.error('Failed to reorder');
     } finally {
       setReordering(false);
     }
@@ -280,12 +292,14 @@ const OrderCard = ({ order, onReorderDone }) => {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          {reorderMsg && <span style={{ fontSize: '0.78rem', color: reorderMsg.includes('Failed') ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>{reorderMsg}</span>}
           {order.status !== 'cancelled' && (
             <button onClick={handleReorder} disabled={reordering} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
               {reordering ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Reorder
             </button>
           )}
+          <button onClick={handleDownloadInvoice} disabled={downloading} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
+            {downloading ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />} Invoice
+          </button>
           <Link to={`/order/${order.order_id}`} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--background)', color: 'var(--text)', border: '1px solid var(--border)', padding: '0.35rem 0.75rem', fontSize: '0.8rem', borderRadius: '8px', textDecoration: 'none', fontWeight: 500 }}>
             <Eye size={14} /> View Details
           </Link>
@@ -343,7 +357,7 @@ const OrdersTab = ({ userId }) => {
           { icon: Package, label: 'Items Bought', value: analytics?.total_items_bought ?? 0, color: 'var(--secondary)' },
           analytics?.most_bought_category && { icon: Tag, label: 'Top Category', value: analytics.most_bought_category, color: 'var(--accent)' },
         ].filter(Boolean).map((s, i) => (
-          <div key={i} className="card" style={{ borderTop: `4px solid ${s.color}`, flex: 1, minWidth: 0 }}>
+          <div key={i} className="card" style={{ borderTop: `4px solid ${s.color}`, flex: 1, minWidth: 0, transition: 'none', transform: 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
               <div style={{ background: `${s.color}18`, borderRadius: '8px', padding: '0.5rem', display: 'flex' }}><s.icon size={20} color={s.color} /></div>
               <span style={{ color: 'var(--muted)', fontSize: '0.82rem', fontWeight: 500 }}>{s.label}</span>
@@ -359,12 +373,11 @@ const OrdersTab = ({ userId }) => {
       </div>
 
       {orders.length === 0 ? (
-        <div className="card" style={{ alignItems: 'center', padding: '3rem', textAlign: 'center', gap: '1rem' }}>
+        <div className="empty-state">
           <ShoppingBag size={48} color="var(--muted)" />
-          <div>
-            <p style={{ fontWeight: 600, marginBottom: '0.25rem' }}>No orders yet</p>
-            <p style={{ color: 'var(--muted)', fontSize: '0.875rem', margin: 0 }}>Start shopping to see your order history here.</p>
-          </div>
+          <h3 style={{ margin: '0.5rem 0 0.25rem', fontWeight: 700 }}>No orders yet</h3>
+          <p style={{ color: 'var(--muted)', margin: '0 0 1rem', fontSize: '0.9rem' }}>Start shopping to see your order history here.</p>
+          <Link to="/"><button style={{ margin: '0 auto' }}>Browse Products</button></Link>
         </div>
       ) : (
         orders.map(order => <OrderCard key={order.order_id} order={order} onReorderDone={refreshCartCount} />)
@@ -396,6 +409,7 @@ const WishlistTab = ({ userId }) => {
     try {
       await wishlistService.removeFromWishlist(userId, productId);
       setItems(prev => prev.filter(i => i.product_id !== productId));
+      toast('Removed from wishlist', { icon: '🗑️' });
     } catch { }
   };
 
@@ -406,7 +420,10 @@ const WishlistTab = ({ userId }) => {
       await wishlistService.removeFromWishlist(userId, productId);
       setItems(prev => prev.filter(i => i.product_id !== productId));
       refreshCartCount();
-    } catch { }
+      toast.success('Moved to cart');
+    } catch {
+      toast.error('Failed to move to cart');
+    }
     setMovingId(null);
   };
 
@@ -420,12 +437,11 @@ const WishlistTab = ({ userId }) => {
       </div>
 
       {items.length === 0 ? (
-        <div className="card" style={{ alignItems: 'center', padding: '3rem', textAlign: 'center', gap: '1rem' }}>
+        <div className="empty-state">
           <Heart size={48} color="var(--muted)" />
-          <div>
-            <p style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Your wishlist is empty</p>
-            <p style={{ color: 'var(--muted)', fontSize: '0.875rem', margin: 0 }}>Save items you love to find them easily later.</p>
-          </div>
+          <h3 style={{ margin: '0.5rem 0 0.25rem', fontWeight: 700 }}>Your wishlist is empty</h3>
+          <p style={{ color: 'var(--muted)', margin: '0 0 1rem', fontSize: '0.9rem' }}>Save items you love to find them easily later.</p>
+          <Link to="/"><button style={{ margin: '0 auto' }}>Browse Products</button></Link>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
@@ -433,7 +449,7 @@ const WishlistTab = ({ userId }) => {
             const p = item.product;
             if (!p) return null;
             return (
-              <div key={item.id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <div key={item.id} className="card product-card" style={{ padding: 0, overflow: 'hidden' }}>
                 <Link to={`/product/${p.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                   <div style={{ width: '100%', height: '180px', background: '#f3f4f6', overflow: 'hidden' }}>
                     {p.image_url ? <img src={p.image_url} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} /> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Package size={32} color="var(--muted)" /></div>}
@@ -480,7 +496,7 @@ const ProfilePage = () => {
   return (
     <div style={{ maxWidth: '920px', margin: '0 auto' }}>
       {/* User Header */}
-      <div className="card" style={{ marginBottom: '1.5rem', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', padding: '1.5rem' }}>
+      <div className="card" style={{ marginBottom: '1.5rem', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', padding: '1.5rem', transition: 'none', transform: 'none' }}>
         <div style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))', borderRadius: '50%', width: '72px', height: '72px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <UserCircle size={40} color="white" />
         </div>

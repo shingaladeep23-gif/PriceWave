@@ -1,43 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { productService, cartService, wishlistService } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useWebSocket } from '../../context/WebSocketContext';
-import { ShoppingCart, ArrowLeft, Loader2, CheckCircle, Package, Tag, AlertTriangle, Heart } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { ShoppingCart, ArrowLeft, Loader2, CheckCircle, Package, Tag, AlertTriangle, Heart, Truck, ZoomIn } from 'lucide-react';
 import { formatPrice } from '../../utils/format';
 
 const DEFAULT_IMG = 'https://picsum.photos/seed/product-default/400/300';
 
-/* ── Stock status display ── */
 const StockStatus = ({ stock }) => {
   if (stock === 0) return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', color: '#dc2626' }}>
-      <AlertTriangle size={20} />
-      <span style={{ fontWeight: 700 }}>Out of Stock — currently unavailable</span>
-    </div>
-  );
-  if (stock < 2) return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', color: '#dc2626' }}>
-      <Package size={20} />
-      <span style={{ fontWeight: 700 }}>Only {stock} left — order soon!</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', padding: '0.75rem 1rem', borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca' }}>
+      <AlertTriangle size={20} color="#dc2626" />
+      <span style={{ fontWeight: 700, color: '#dc2626' }}>Out of Stock — currently unavailable</span>
     </div>
   );
   if (stock < 5) return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', color: '#d97706' }}>
-      <Package size={20} />
-      <span style={{ fontWeight: 600 }}>Only {stock} left in stock — hurry!</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', padding: '0.75rem 1rem', borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca' }}>
+      <Package size={20} color="#dc2626" />
+      <span style={{ fontWeight: 700, color: '#dc2626' }}>Only {stock} left — order soon!</span>
     </div>
   );
   if (stock < 10) return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', color: '#d97706' }}>
-      <Package size={20} />
-      <span style={{ fontWeight: 500 }}>Only {stock} left in stock</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', padding: '0.75rem 1rem', borderRadius: '10px', background: '#fffbeb', border: '1px solid #fde68a' }}>
+      <Package size={20} color="#d97706" />
+      <span style={{ fontWeight: 600, color: '#d97706' }}>Only {stock} left in stock</span>
     </div>
   );
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', color: 'var(--success)' }}>
-      <Package size={20} />
-      <span>{stock} in stock — Ready to ship</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', padding: '0.75rem 1rem', borderRadius: '10px', background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+      <Package size={20} color="var(--success)" />
+      <span style={{ color: 'var(--success)', fontWeight: 600 }}>In Stock — Ready to ship</span>
     </div>
   );
 };
@@ -55,13 +49,17 @@ const ProductDetail = () => {
   const [priceFlash, setPriceFlash] = useState(false);
   const [wishlisted, setWishlisted] = useState(false);
   const [wishLoading, setWishLoading] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
+  const [zoomPos, setZoomPos] = useState({ x: 50, y: 50 });
+  const imgRef = useRef(null);
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
         const prod = await productService.getProduct(id);
         setProduct(prod);
-        const rel = await productService.getProducts(prod.category);
+        const rel = await productService.getProducts({ category: prod.category });
         setRelated(rel.filter(p => p.id !== parseInt(id)).slice(0, 4));
       } catch (err) {
         console.error('Failed to fetch product detail', err);
@@ -72,7 +70,6 @@ const ProductDetail = () => {
     fetchData();
   }, [id]);
 
-  // Check if product is in wishlist
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -90,15 +87,16 @@ const ProductDetail = () => {
       if (wishlisted) {
         await wishlistService.removeFromWishlist(user.id, parseInt(id));
         setWishlisted(false);
+        toast('Removed from wishlist');
       } else {
         await wishlistService.addToWishlist(user.id, parseInt(id));
         setWishlisted(true);
+        toast.success('Added to wishlist');
       }
     } catch { }
     setWishLoading(false);
   };
 
-  // Live price updates via WebSocket
   useEffect(() => {
     if (!lastMessage || !product) return;
     const msg = lastMessage;
@@ -135,12 +133,22 @@ const ProductDetail = () => {
     try {
       await cartService.addToCart(product.id, 1);
       setAdded(true);
+      toast.success('Added to cart');
       setTimeout(() => setAdded(false), 2500);
     } catch (err) {
       setCartError(err.message || 'Failed to add to cart.');
+      toast.error(err.message || 'Failed to add to cart');
     } finally {
       setAdding(false);
     }
+  };
+
+  const handleMouseMove = (e) => {
+    if (!imgRef.current) return;
+    const rect = imgRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setZoomPos({ x, y });
   };
 
   if (loading) return (
@@ -158,39 +166,69 @@ const ProductDetail = () => {
 
   return (
     <div>
-      <Link to="/" className="nav-link" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2rem', width: 'fit-content' }}>
+      <Link to="/" className="nav-link" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2rem', width: 'fit-content', color: 'var(--primary)' }}>
         <ArrowLeft size={20} /> Back to Products
       </Link>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4rem', marginBottom: '4rem' }}>
-        {/* Image */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem', marginBottom: '4rem' }}>
+        {/* Image with zoom */}
         <div style={{ position: 'relative' }}>
-          <img
-            src={product.image_url || DEFAULT_IMG}
-            alt={product.name}
-            style={{ width: '100%', borderRadius: '16px', objectFit: 'cover', maxHeight: '420px', display: 'block', opacity: isOOS ? 0.6 : 1 }}
-          />
+          <div
+            ref={imgRef}
+            className="product-image-zoom"
+            style={{
+              position: 'relative',
+              overflow: 'hidden',
+              borderRadius: '16px',
+              cursor: zoomed ? 'zoom-out' : 'zoom-in',
+              background: '#f3f4f6',
+            }}
+            onMouseEnter={() => setZoomed(true)}
+            onMouseLeave={() => setZoomed(false)}
+            onMouseMove={handleMouseMove}
+            onClick={() => setZoomed(prev => !prev)}
+          >
+            <img
+              src={product.image_url || DEFAULT_IMG}
+              alt={product.name}
+              style={{
+                width: '100%',
+                display: 'block',
+                objectFit: 'cover',
+                maxHeight: '500px',
+                opacity: isOOS ? 0.6 : 1,
+                transformOrigin: `${zoomPos.x}% ${zoomPos.y}%`,
+                transform: zoomed ? 'scale(1.8)' : 'scale(1)',
+                transition: zoomed ? 'transform 0.1s ease-out' : 'transform 0.3s ease',
+              }}
+            />
+            {!zoomed && (
+              <div style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(0,0,0,0.5)', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <ZoomIn size={14} /> Hover to zoom
+              </div>
+            )}
+          </div>
           {isOOS && (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '16px', background: 'rgba(0,0,0,0.35)' }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '16px', background: 'rgba(0,0,0,0.35)', pointerEvents: 'none' }}>
               <span style={{ background: '#dc2626', color: 'white', padding: '0.5rem 1.25rem', borderRadius: '8px', fontWeight: 800, fontSize: '1.1rem', letterSpacing: '1px' }}>OUT OF STOCK</span>
             </div>
           )}
           {!isOOS && product.stock < 5 && (
-            <div style={{ position: 'absolute', top: '16px', left: '16px', background: '#f59e0b', color: 'white', padding: '4px 12px', borderRadius: '8px', fontWeight: 700, fontSize: '0.8rem' }}>
+            <div style={{ position: 'absolute', top: '16px', left: '16px', background: '#f59e0b', color: 'white', padding: '4px 12px', borderRadius: '8px', fontWeight: 700, fontSize: '0.8rem', pointerEvents: 'none' }}>
               ONLY {product.stock} LEFT
             </div>
           )}
         </div>
 
         {/* Info */}
-        <div style={{ padding: '1rem 0' }}>
+        <div style={{ padding: '0.5rem 0' }}>
           <span className="badge badge-success" style={{ marginBottom: '1rem', display: 'inline-block' }}>{product.category}</span>
           <h1 style={{ fontSize: '1.8rem', marginBottom: '1rem', lineHeight: '1.3' }}>{product.name}</h1>
 
           {/* Pricing */}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem', marginBottom: '0.5rem' }}>
             <span style={{
-              fontSize: '2rem', fontWeight: 'bold',
+              fontSize: '2.2rem', fontWeight: 'bold',
               color: isOOS ? 'var(--muted)' : priceFlash ? '#dc2626' : 'var(--primary)',
               transition: 'color 0.3s, transform 0.3s',
               transform: priceFlash ? 'scale(1.08)' : 'scale(1)',
@@ -223,11 +261,22 @@ const ProductDetail = () => {
             </div>
           )}
 
-          <p style={{ color: 'var(--muted)', fontSize: '1rem', lineHeight: '1.8', marginBottom: '2rem' }}>
+          <p style={{ color: 'var(--muted)', fontSize: '1rem', lineHeight: '1.8', marginBottom: '1.5rem' }}>
             {product.description}
           </p>
 
           <StockStatus stock={product.stock} />
+
+          {/* Delivery Estimate */}
+          {!isOOS && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', padding: '0.75rem 1rem', borderRadius: '10px', background: 'var(--card)', border: '1px solid var(--border)' }}>
+              <Truck size={20} color="var(--primary)" />
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Estimated Delivery</div>
+                <div style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>3–5 business days</div>
+              </div>
+            </div>
+          )}
 
           {cartError && (
             <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '1rem', color: '#dc2626', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -239,6 +288,7 @@ const ProductDetail = () => {
             <button
               onClick={handleAddToCart}
               disabled={isOOS || adding}
+              className="add-to-cart-btn"
               style={{
                 flex: 1, padding: '1rem', fontSize: '1.1rem',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem',
@@ -250,7 +300,7 @@ const ProductDetail = () => {
               {isOOS
                 ? <><Package size={22} /> Out of Stock</>
                 : adding
-                ? <><Loader2 size={22} className="animate-spin" /> Adding…</>
+                ? <><Loader2 size={22} className="animate-spin" /> Adding...</>
                 : added
                 ? <><CheckCircle size={22} /> Added to Cart</>
                 : <><ShoppingCart size={22} /> Add to Cart</>
@@ -282,7 +332,7 @@ const ProductDetail = () => {
           <h2 style={{ marginBottom: '1.5rem' }}>Related Products</h2>
           <div className="grid">
             {related.map(item => (
-              <Link to={`/product/${item.id}`} key={item.id} className="card" style={{ textDecoration: 'none', color: 'inherit', opacity: item.stock === 0 ? 0.65 : 1 }}>
+              <Link to={`/product/${item.id}`} key={item.id} className="card product-card" style={{ textDecoration: 'none', color: 'inherit', opacity: item.stock === 0 ? 0.65 : 1 }}>
                 <div className="image-container">
                   <img src={item.image_url || DEFAULT_IMG} alt={item.name} />
                 </div>

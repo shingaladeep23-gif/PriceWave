@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from .database import engine, Base
 from .config import settings
-from .routers import auth, products, admin, user, cart
+from .routers import auth, products, admin, user, cart, invoice
 from .services.websocket_manager import manager
 
 
@@ -44,6 +44,7 @@ app.include_router(products.router)
 app.include_router(admin.router)
 app.include_router(user.router)
 app.include_router(cart.router)
+app.include_router(invoice.router)
 
 
 @app.websocket("/ws")

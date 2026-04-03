@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { orderService } from '../../services/api';
+import toast from 'react-hot-toast';
 import {
   Loader2, Package, ArrowLeft, MapPin, XCircle,
-  CheckCircle2, Truck, PackageCheck, CircleDot,
+  CheckCircle2, Truck, PackageCheck, CircleDot, FileText,
 } from 'lucide-react';
 
 const formatPrice = (price) =>
@@ -81,6 +82,7 @@ const OrderDetailPage = () => {
   const [error, setError] = useState(null);
   const [cancelling, setCancelling] = useState(false);
   const [cancelMsg, setCancelMsg] = useState('');
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -93,6 +95,18 @@ const OrderDetailPage = () => {
       setLoading(false);
     })();
   }, [id]);
+
+  const handleDownloadInvoice = async () => {
+    setDownloading(true);
+    try {
+      await orderService.downloadInvoice(order.order_id);
+      toast.success('Invoice downloaded');
+    } catch (err) {
+      toast.error(err.message || 'Failed to download invoice');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const handleCancel = async () => {
     if (!window.confirm('Are you sure you want to cancel this order?')) return;
@@ -144,6 +158,17 @@ const OrderDetailPage = () => {
             <div style={{ color: 'var(--muted)', fontSize: '0.85rem', marginTop: '0.25rem' }}>Placed on {formatDate(order.created_at)}</div>
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <button
+              onClick={handleDownloadInvoice}
+              disabled={downloading}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.4rem',
+                background: 'transparent', border: '1px solid var(--border)',
+                color: 'var(--text)', fontSize: '0.85rem', padding: '0.45rem 1rem',
+              }}
+            >
+              {downloading ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />} Download Invoice
+            </button>
             {order.status === 'processing' && (
               <button
                 onClick={handleCancel}

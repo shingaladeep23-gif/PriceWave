@@ -332,6 +332,77 @@ button:hover {
   letter-spacing: 1px;
 }
 
+/* ── Empty States ── */
+.empty-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* ── Search Dropdown ── */
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+  border: 1px solid var(--border);
+  z-index: 200;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.search-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text);
+  transition: background 0.15s;
+}
+
+.search-dropdown-item:hover {
+  background: #f1f5f9;
+}
+
+.search-dropdown-item:first-child {
+  border-radius: 10px 10px 0 0;
+}
+
+.search-dropdown-item:last-child {
+  border-radius: 0 0 10px 10px;
+}
+
+/* ── Product Card hover polish ── */
+.product-card {
+  transition: box-shadow 0.25s, transform 0.25s;
+}
+
+.product-card:hover {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  transform: translateY(-4px);
+}
+
+/* ── Add to cart button hover ── */
+.add-to-cart-btn {
+  transition: background 0.2s, transform 0.15s !important;
+}
+
+.add-to-cart-btn:hover:not(:disabled) {
+  transform: scale(1.02) !important;
+}
+
 /* ── Animate spin (Loader2) ── */
 .animate-spin {
   animation: spin 1s linear infinite;

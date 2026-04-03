@@ -23,7 +23,10 @@
       "Bash(find /c/Users/Asus/Desktop/hack -not -path */node_modules/* -type d)",
       "Bash(find /c/Users/Asus/Desktop/hack/frontend/src -type f \\\\\\(-name *.jsx -o -name *.js -o -name *.tsx -o -name *.ts -o -name *.css \\\\\\))",
       "Bash(python -c \"from backend.main import app; print\\(''''App loaded successfully''''\\); print\\(''''Routes:''''\\); [print\\(f''''  {r.path} [{\"\",\"\".join\\(r.methods\\)}]''''\\) for r in app.routes if hasattr\\(r, ''''methods''''\\)]\")",
-      "Bash(python -c \"from backend.main import app; [print\\(f''''  {r.path} [{\"\",\"\".join\\(r.methods\\)}]''''\\) for r in app.routes if hasattr\\(r, ''''methods''''\\)]\")"
+      "Bash(python -c \"from backend.main import app; [print\\(f''''  {r.path} [{\"\",\"\".join\\(r.methods\\)}]''''\\) for r in app.routes if hasattr\\(r, ''''methods''''\\)]\")",
+      "Bash(npm install:*)",
+      "Bash(npx vite:*)",
+      "Bash(pip install:*)"
     ]
   }
 }

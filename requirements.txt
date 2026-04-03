@@ -11,3 +11,4 @@ pandas
 numpy
 python-multipart
 google-auth
+reportlab

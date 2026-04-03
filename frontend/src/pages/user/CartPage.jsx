@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { cartService, userService, addressService } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import toast from 'react-hot-toast';
 import { ShoppingCart, Trash2, ArrowRight, Loader2, CheckCircle, Package, AlertTriangle, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatPrice } from '../../utils/format';
@@ -19,7 +20,6 @@ const CartPage = () => {
 
   const loadCart = async () => {
     const data = await cartService.getCart();
-    console.log("CART DATA:", data);
     setCart(data);
   };
 
@@ -46,7 +46,6 @@ const CartPage = () => {
   }, []);
 
   const handleUpdateQuantity = async (productId, newQuantity) => {
-    // Clear stale error for this item
     setQuantityErrors(prev => ({ ...prev, [productId]: '' }));
     try {
       await cartService.updateQuantity(productId, newQuantity);
@@ -60,6 +59,7 @@ const CartPage = () => {
     try {
       await cartService.removeFromCart(productId);
       await loadCart();
+      toast('Removed from cart', { icon: '🗑️' });
     } catch (err) {
       console.error("Failed to remove item", err);
     }
@@ -71,9 +71,11 @@ const CartPage = () => {
       const res = await cartService.checkout(selectedAddress);
       setCheckoutStatus({ status: 'success', orderId: res.order_id });
       setCart({ items: [], grand_total: 0 });
+      toast.success('Order placed successfully!');
     } catch (err) {
       console.error("Checkout failed", err);
       setCheckoutStatus({ status: 'error' });
+      toast.error('Checkout failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -87,11 +89,11 @@ const CartPage = () => {
 
   if (checkoutStatus?.status === 'success') {
     return (
-      <div style={{ textAlign: 'center', marginTop: '4rem' }}>
-        <CheckCircle size={64} color="var(--success)" style={{ marginBottom: '1.5rem' }} />
-        <h1>Order Placed Successfully!</h1>
-        <p style={{ color: 'var(--muted)', marginBottom: '1rem' }}>
-          Order ID: <span style={{ color: 'var(--primary)' }}>{checkoutStatus.orderId}</span>
+      <div className="empty-state" style={{ marginTop: '4rem' }}>
+        <CheckCircle size={64} color="var(--success)" />
+        <h1 style={{ marginBottom: '0.5rem' }}>Order Placed Successfully!</h1>
+        <p style={{ color: 'var(--muted)', marginBottom: '0.5rem' }}>
+          Order ID: <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{checkoutStatus.orderId}</span>
         </p>
         <p style={{ color: 'var(--muted)', marginBottom: '2rem' }}>
           Prices were locked at time of addition. Thank you for shopping with us!
@@ -108,10 +110,13 @@ const CartPage = () => {
       </h1>
 
       {cart.items.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
-          <Package size={48} color="var(--muted)" style={{ marginBottom: '1rem' }} />
-          <p style={{ color: 'var(--muted)', fontSize: '1.2rem', marginBottom: '2rem' }}>Your cart is empty.</p>
-          <Link to="/"><button>Explore Products</button></Link>
+        <div className="empty-state">
+          <ShoppingCart size={56} color="var(--muted)" />
+          <h3 style={{ margin: '0.5rem 0 0.25rem', fontWeight: 700, fontSize: '1.2rem' }}>Your cart is empty</h3>
+          <p style={{ color: 'var(--muted)', margin: '0 0 1.25rem', fontSize: '0.95rem' }}>
+            Looks like you haven't added anything yet. Start shopping to fill it up!
+          </p>
+          <Link to="/"><button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 auto' }}>Start Shopping <ArrowRight size={18} /></button></Link>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: '2rem', alignItems: 'start' }}>
@@ -122,16 +127,14 @@ const CartPage = () => {
               <div
                 key={item.product_id}
                 className="card"
-                style={{ display: 'flex', gap: '1rem', alignItems: 'center', padding: '1rem' }}
+                style={{ display: 'flex', gap: '1rem', alignItems: 'center', padding: '1rem', transition: 'none', transform: 'none' }}
               >
-                {/* Product Image */}
                 <img
                   src={item.image_url || DEFAULT_IMG}
                   alt={item.product_name}
                   style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }}
                 />
 
-                {/* Product Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: '600', marginBottom: '0.25rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {item.product_name || `Product #${item.product_id}`}
@@ -142,7 +145,6 @@ const CartPage = () => {
                   </div>
                 </div>
 
-                {/* Quantity Controls */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', background: '#020617', borderRadius: '8px', border: '1px solid var(--border)' }}>
                     <button
@@ -163,12 +165,10 @@ const CartPage = () => {
                   )}
                 </div>
 
-                {/* Line Total */}
                 <div style={{ textAlign: 'right', minWidth: '90px', fontWeight: 'bold', flexShrink: 0 }}>
                   {formatPrice(item.total)}
                 </div>
 
-                {/* Remove */}
                 <button
                   onClick={() => handleRemove(item.product_id)}
                   style={{ background: 'transparent', color: 'var(--danger)', padding: '0.4rem', border: 'none', flexShrink: 0 }}
@@ -181,9 +181,8 @@ const CartPage = () => {
 
           {/* Order Summary */}
           <div style={{ position: 'sticky', top: '100px' }}>
-            {/* Address Selection */}
             {addresses.length > 0 && (
-              <div className="card" style={{ marginBottom: '1rem' }}>
+              <div className="card" style={{ marginBottom: '1rem', transition: 'none', transform: 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
                   <MapPin size={18} color="var(--primary)" />
                   <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>Deliver To</h3>
@@ -203,7 +202,7 @@ const CartPage = () => {
               </div>
             )}
 
-            <div className="card">
+            <div className="card" style={{ transition: 'none', transform: 'none' }}>
               <h2 style={{ marginBottom: '1.5rem' }}>Order Summary</h2>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
                 <span style={{ color: 'var(--muted)' }}>Items ({cart.items.length})</span>
@@ -233,7 +232,7 @@ const CartPage = () => {
           <h2 style={{ marginBottom: '1.5rem' }}>You might also like</h2>
           <div className="grid">
             {recommendations.slice(0, 4).map(product => (
-              <Link to={`/product/${product.id}`} key={product.id} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <Link to={`/product/${product.id}`} key={product.id} className="card product-card" style={{ textDecoration: 'none', color: 'inherit' }}>
                 <div className="image-container">
                   <img src={product.image_url || DEFAULT_IMG} alt={product.name} />
                 </div>

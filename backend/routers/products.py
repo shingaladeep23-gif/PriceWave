@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import func
 from typing import List, Optional
 import redis.asyncio as redis
 
@@ -16,15 +17,61 @@ redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 @router.get("/", response_model=List[schemas.ProductResponse])
 async def list_products(
     category: Optional[str] = None,
+    search: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    sort: Optional[str] = None,
     limit: int = 100,
     db: AsyncSession = Depends(get_db)
 ):
     query = select(db_models.Product)
     if category:
         query = query.filter(db_models.Product.category == category)
-    
+    if search:
+        query = query.filter(db_models.Product.name.ilike(f"%{search}%"))
+    if min_price is not None:
+        query = query.filter(db_models.Product.current_price >= min_price)
+    if max_price is not None:
+        query = query.filter(db_models.Product.current_price <= max_price)
+
+    if sort == "price_asc":
+        query = query.order_by(db_models.Product.current_price.asc())
+    elif sort == "price_desc":
+        query = query.order_by(db_models.Product.current_price.desc())
+    elif sort == "popularity":
+        # Sub-query to count events (clicks/views) per product
+        event_count = (
+            select(
+                db_models.Event.product_id,
+                func.count(db_models.Event.id).label("event_count")
+            )
+            .group_by(db_models.Event.product_id)
+            .subquery()
+        )
+        query = (
+            query
+            .outerjoin(event_count, db_models.Product.id == event_count.c.product_id)
+            .order_by(func.coalesce(event_count.c.event_count, 0).desc())
+        )
+
     result = await db.execute(query.limit(limit))
     return result.scalars().all()
+
+@router.get("/suggestions")
+async def product_suggestions(
+    q: str = "",
+    limit: int = 6,
+    db: AsyncSession = Depends(get_db)
+):
+    if not q or len(q) < 2:
+        return []
+    query = (
+        select(db_models.Product.id, db_models.Product.name)
+        .filter(db_models.Product.name.ilike(f"%{q}%"))
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    return [{"id": row.id, "name": row.name} for row in result.all()]
 
 @router.get("/{product_id}", response_model=schemas.ProductResponse)
 async def get_product(
@@ -36,10 +83,10 @@ async def get_product(
     product = result.scalars().first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    
+
     # 1. Increment Redis view count for dynamic pricing engine
     await redis_client.incr(f"product:{product_id}:views")
-    
+
     # 2. Record Event (Async, don't wait for DB if possible but keeping it simple)
     if user:
         new_event = db_models.Event(
@@ -49,7 +96,7 @@ async def get_product(
         )
         db.add(new_event)
         await db.commit()
-    
+
     return product
 
 @router.post("/{product_id}/click")
@@ -60,7 +107,7 @@ async def record_click(
 ):
     # 1. Increment Redis click count
     await redis_client.incr(f"product:{product_id}:clicks")
-    
+
     # 2. Record Event
     new_event = db_models.Event(
         user_id=user.id,
