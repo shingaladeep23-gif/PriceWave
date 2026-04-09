@@ -132,8 +132,10 @@ export const cartService = {
 };
 
 export const adminService = {
-  getStats: async () => {
-    const response = await api.get('/admin/dashboard/stats');
+  getStats: async ({ skip = 0, limit = 50, search = '' } = {}) => {
+    const params = { skip, limit };
+    if (search) params.search = search;
+    const response = await api.get('/admin/dashboard/stats', { params });
     return response.data;
   },
   getOverview: async () => {
@@ -154,6 +156,14 @@ export const adminService = {
   },
   recalculatePrices: async () => {
     const response = await api.post('/admin/pricing/recalculate');
+    return response.data;
+  },
+  restockSingle: async (id) => {
+    const response = await api.post(`/admin/inventory/restock/${id}`);
+    return response.data;
+  },
+  overridePrice: async (id, new_price) => {
+    const response = await api.post(`/admin/pricing/override/${id}?new_price=${new_price}`);
     return response.data;
   },
   restockInventory: async () => {

@@ -6,7 +6,7 @@ import { ShoppingCart, Trash2, ArrowRight, Loader2, CheckCircle, Package, AlertT
 import { Link } from 'react-router-dom';
 import { formatPrice } from '../../utils/format';
 
-const DEFAULT_IMG = 'https://picsum.photos/seed/product-default/80/80';
+const DEFAULT_IMG = '/placeholder.png';
 
 const CartPage = () => {
   const { user } = useAuth();
@@ -130,7 +130,7 @@ const CartPage = () => {
                 style={{ display: 'flex', gap: '1rem', alignItems: 'center', padding: '1rem', transition: 'none', transform: 'none' }}
               >
                 <img
-                  src={item.image_url || DEFAULT_IMG}
+                  src={item.image_url || DEFAULT_IMG} onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_IMG; }}
                   alt={item.product_name}
                   style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }}
                 />
@@ -234,7 +234,7 @@ const CartPage = () => {
             {recommendations.slice(0, 4).map(product => (
               <Link to={`/product/${product.id}`} key={product.id} className="card product-card" style={{ textDecoration: 'none', color: 'inherit' }}>
                 <div className="image-container">
-                  <img src={product.image_url || DEFAULT_IMG} alt={product.name} />
+                  <img src={product.image_url || DEFAULT_IMG} onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_IMG; }} alt={product.name} />
                 </div>
                 <div style={{ fontWeight: '600', marginBottom: '0.25rem' }}>{product.name}</div>
                 <div style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{formatPrice(product.current_price)}</div>

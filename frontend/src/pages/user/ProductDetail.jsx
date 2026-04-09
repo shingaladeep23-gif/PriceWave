@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { ShoppingCart, ArrowLeft, Loader2, CheckCircle, Package, Tag, AlertTriangle, Heart, Truck, ZoomIn } from 'lucide-react';
 import { formatPrice } from '../../utils/format';
 
-const DEFAULT_IMG = 'https://picsum.photos/seed/product-default/400/300';
+const DEFAULT_IMG = '/placeholder.png';
 
 const StockStatus = ({ stock }) => {
   if (stock === 0) return (
@@ -189,7 +189,7 @@ const ProductDetail = () => {
             onClick={() => setZoomed(prev => !prev)}
           >
             <img
-              src={product.image_url || DEFAULT_IMG}
+              src={product.image_url || DEFAULT_IMG} onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_IMG; }}
               alt={product.name}
               style={{
                 width: '100%',
@@ -334,7 +334,7 @@ const ProductDetail = () => {
             {related.map(item => (
               <Link to={`/product/${item.id}`} key={item.id} className="card product-card" style={{ textDecoration: 'none', color: 'inherit', opacity: item.stock === 0 ? 0.65 : 1 }}>
                 <div className="image-container">
-                  <img src={item.image_url || DEFAULT_IMG} alt={item.name} />
+                  <img src={item.image_url || DEFAULT_IMG} onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_IMG; }} alt={item.name} />
                 </div>
                 <div style={{ fontWeight: '600', marginBottom: '0.25rem' }}>{item.name}</div>
                 <div style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{formatPrice(item.current_price)}</div>

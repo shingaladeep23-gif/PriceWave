@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { Search, ShoppingCart, Loader2, Flame, TrendingUp, SlidersHorizontal, ChevronDown, X, PackageSearch } from 'lucide-react';
 import { formatPrice } from '../../utils/format';
 
-const DEFAULT_IMG = 'https://picsum.photos/seed/product-default/400/300';
+const DEFAULT_IMG = '/placeholder.png';
 
 const StockLabel = ({ stock }) => {
   if (stock === 0) return (
@@ -160,7 +160,7 @@ const ProductListing = () => {
             {trendingProducts.map(product => (
               <Link key={product.id} to={`/product/${product.id}`} className="card product-card" style={{ textDecoration: 'none', color: 'inherit' }}>
                 <div className="image-container">
-                  <img src={product.image_url || DEFAULT_IMG} alt={product.name} />
+                  <img src={product.image_url || DEFAULT_IMG} onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_IMG; }} alt={product.name} />
                 </div>
                 <div style={{ fontWeight: '600', marginBottom: '0.25rem' }}>{product.name}</div>
                 <div style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{formatPrice(product.current_price)}</div>
@@ -181,7 +181,7 @@ const ProductListing = () => {
             {recommendations.slice(0, 6).map(product => (
               <Link key={product.id} to={`/product/${product.id}`} className="card product-card" style={{ minWidth: '220px', textDecoration: 'none', color: 'inherit' }}>
                 <div className="image-container">
-                  <img src={product.image_url || DEFAULT_IMG} alt={product.name} />
+                  <img src={product.image_url || DEFAULT_IMG} onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_IMG; }} alt={product.name} />
                 </div>
                 <div style={{ fontWeight: '600', marginBottom: '0.25rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</div>
                 <div style={{ color: 'var(--secondary)', fontWeight: 'bold' }}>{formatPrice(product.current_price)}</div>
@@ -353,7 +353,7 @@ const ProductListing = () => {
                     onClick={() => productService.recordClick(product.id)}
                   >
                     <div className="image-container">
-                      <img src={product.image_url || DEFAULT_IMG} alt={product.name} />
+                      <img src={product.image_url || DEFAULT_IMG} onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_IMG; }} alt={product.name} />
                     </div>
                     <h3 style={{ margin: '0 0 0.25rem', fontSize: '0.95rem' }}>{product.name}</h3>
                     <div>

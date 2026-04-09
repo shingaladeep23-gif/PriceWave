@@ -9,7 +9,7 @@ import {
 import {
   TrendingUp, Users, ShoppingCart, RefreshCcw,
   Loader2, ArrowUpRight, Package, X, AlertTriangle,
-  Boxes, RotateCcw,
+  Boxes, RotateCcw, Download, Search, ChevronLeft, ChevronRight, Settings
 } from 'lucide-react';
 
 const formatPrice = (price) =>
@@ -43,15 +43,22 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const [restockMsg, setRestockMsg] = useState('');
   const [flashIds, setFlashIds] = useState(new Set());
+  
+  const ITEMS_PER_PAGE = 20;
+  const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [totalProducts, setTotalProducts] = useState(0);
 
   const loadData = useCallback(async () => {
     try {
-      const [productStats, overviewData, trafficData] = await Promise.all([
-        adminService.getStats(),
+      const [statsData, overviewData, trafficData] = await Promise.all([
+        adminService.getStats({ skip: (page - 1) * ITEMS_PER_PAGE, limit: ITEMS_PER_PAGE, search: searchTerm }),
         adminService.getOverview(),
         adminService.getTraffic(),
       ]);
-      setStats(productStats);
+      setStats(statsData.items || statsData);
+      setTotalProducts(statsData.total || statsData.length);
       setOverview(overviewData);
       setTraffic(trafficData);
       setLastUpdated(new Date());
@@ -62,7 +69,7 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, searchTerm]);
 
   // Initial data load
   useEffect(() => {
@@ -134,9 +141,36 @@ const Dashboard = () => {
     } finally { setRestocking(false); }
   };
 
-  const showExplanation = async (productId) => {
-    try { setExplainProduct(await adminService.explainPricing(productId)); }
-    catch (err) { console.error('Explain failed:', err); }
+  const handleRestockSingle = async (id) => {
+    try {
+      await adminService.restockSingle(id);
+      setRestockMsg('Item restocked');
+      setTimeout(() => setRestockMsg(''), 3000);
+      loadData();
+    } catch(err) { console.error(err); }
+  };
+
+  const handleOverridePrice = async (id) => {
+    const p = prompt("Enter new absolute price (e.g. 59.99):");
+    if (p && !isNaN(p)) {
+      try {
+        await adminService.overridePrice(id, parseFloat(p));
+        loadData();
+      } catch(err) { console.error(err); }
+    }
+  };
+
+  const downloadCSV = () => {
+    const headers = ['Name', 'Base Price', 'Current Price', 'Stock', 'Clicks', 'Purchases'];
+    const rows = stats.map(s => `"${s.name}",${s.base_price},${s.current_price},${s.stock},${s.clicks},${s.purchases || 0}`);
+    const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "pricewave_report.csv");
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   const criticalItems = stats.filter(s => s.stock < 5);
@@ -157,6 +191,12 @@ const Dashboard = () => {
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           {restockMsg && <span style={{ fontSize: '0.82rem', color: restockMsg.includes('failed') ? 'var(--danger)' : 'var(--success)', fontWeight: 600 }}>{restockMsg}</span>}
+          <button
+            onClick={downloadCSV}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
+          >
+            <Download size={18} /> Export
+          </button>
           <button
             onClick={handleRestock}
             disabled={restocking}
@@ -216,28 +256,28 @@ const Dashboard = () => {
 
       {/* Top 4 KPI Cards */}
       <div className="grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
-        <div className="card" style={{ borderLeft: '4px solid var(--primary)' }}>
+        <div className="glass-panel" style={{ borderLeft: '4px solid var(--primary)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
             <Users color="var(--primary)" />
             <span style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>Total Clicks</span>
           </div>
           <div style={{ fontSize: '1.75rem', fontWeight: 'bold' }}>{overview.total_clicks}</div>
         </div>
-        <div className="card" style={{ borderLeft: '4px solid var(--accent)' }}>
+        <div className="glass-panel" style={{ borderLeft: '4px solid var(--accent)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
             <ShoppingCart color="var(--accent)" />
             <span style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>Purchases</span>
           </div>
           <div style={{ fontSize: '1.75rem', fontWeight: 'bold' }}>{overview.total_purchases}</div>
         </div>
-        <div className="card" style={{ borderLeft: '4px solid var(--secondary)' }}>
+        <div className="glass-panel" style={{ borderLeft: '4px solid var(--secondary)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
             <TrendingUp color="var(--secondary)" />
             <span style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>Conversion</span>
           </div>
           <div style={{ fontSize: '1.75rem', fontWeight: 'bold' }}>{overview.conversion_rate}%</div>
         </div>
-        <div className="card" style={{ borderLeft: '4px solid var(--success)' }}>
+        <div className="glass-panel" style={{ borderLeft: '4px solid var(--success)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
             <Package color="var(--success)" />
             <span style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>Revenue</span>
@@ -248,7 +288,7 @@ const Dashboard = () => {
 
       {/* Charts */}
       <div className="grid" style={{ gridTemplateColumns: '2fr 1fr', gap: '2rem', marginBottom: '3rem' }}>
-        <div className="card" style={{ height: '400px' }}>
+        <div className="glass-panel" style={{ height: '400px' }}>
           <h3 style={{ marginBottom: '1.5rem' }}>Live Traffic (Last 30 Mins)</h3>
           <ResponsiveContainer width="100%" height="85%">
             <LineChart data={traffic}>
@@ -260,7 +300,7 @@ const Dashboard = () => {
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <div className="card" style={{ height: '400px' }}>
+        <div className="glass-panel" style={{ height: '400px' }}>
           <h3 style={{ marginBottom: '1.5rem' }}>Top Products by Clicks</h3>
           <ResponsiveContainer width="100%" height="85%">
             <BarChart data={stats.slice(0, 5)} layout="vertical">
@@ -275,8 +315,27 @@ const Dashboard = () => {
       </div>
 
       {/* Product Table */}
-      <div className="card">
-        <h3 style={{ marginBottom: '1.5rem' }}>Real-Time Pricing, Demand & Inventory</h3>
+      <div className="glass-panel">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <h3 style={{ margin: 0 }}>Real-Time Pricing, Demand & Inventory</h3>
+          <form 
+            onSubmit={(e) => { e.preventDefault(); setPage(1); setSearchTerm(searchInput); }}
+            style={{ display: 'flex', gap: '0.5rem', width: '300px', maxWidth: '100%' }}
+          >
+            <div style={{ display: 'flex', flex: 1, border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', background: '#fff' }}>
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                style={{ flex: 1, border: 'none', padding: '0.5rem 0.75rem', outline: 'none', fontSize: '0.9rem' }}
+              />
+              <button type="submit" style={{ background: 'transparent', border: 'none', color: 'var(--muted)', padding: '0 0.75rem', cursor: 'pointer' }}>
+                <Search size={18} />
+              </button>
+            </div>
+          </form>
+        </div>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -287,11 +346,11 @@ const Dashboard = () => {
                 <th style={{ padding: '1rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Demand</th>
                 <th style={{ padding: '1rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Stock</th>
                 <th style={{ padding: '1rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Current Price</th>
-                <th style={{ padding: '1rem', color: 'var(--muted)' }}>Action</th>
+                <th style={{ padding: '1rem', color: 'var(--muted)' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {stats.slice(0, 10).map((item) => {
+              {stats.map((item) => {
                 const isFlashing = flashIds.has(item.product_id);
                 const rowBg = isFlashing
                   ? 'rgba(37,99,235,0.12)'
@@ -328,18 +387,59 @@ const Dashboard = () => {
                       </div>
                     </td>
                     <td style={{ padding: '1rem' }}>
-                      <button
-                        onClick={() => showExplanation(item.product_id)}
-                        style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem', background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                      >
-                        Explain
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          onClick={() => showExplanation(item.product_id)}
+                          style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem', background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          title="Explain Pricing"
+                        >
+                          Explain
+                        </button>
+                        <button
+                          onClick={() => handleOverridePrice(item.product_id)}
+                          style={{ padding: '0.25rem', background: 'transparent', border: '1px solid var(--warning)', color: '#f59e0b', borderRadius: '4px', cursor: 'pointer' }}
+                          title="Override Price"
+                        >
+                          <Settings size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleRestockSingle(item.product_id)}
+                          style={{ padding: '0.25rem', background: 'transparent', border: '1px solid var(--success)', color: 'var(--success)', borderRadius: '4px', cursor: 'pointer' }}
+                          title="Restock Sub-supply"
+                        >
+                          <Boxes size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+        </div>
+        
+        {/* Pagination */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
+            Showing {Math.min((page - 1) * ITEMS_PER_PAGE + 1, totalProducts)} to {Math.min(page * ITEMS_PER_PAGE, totalProducts)} of {totalProducts} products
+            {searchTerm && ` (filtered)`}
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              style={{ background: 'white', color: 'var(--text)', border: '1px solid var(--border)', padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', opacity: page === 1 ? 0.5 : 1 }}
+            >
+              <ChevronLeft size={16} /> Prev
+            </button>
+            <button
+              onClick={() => setPage(p => p + 1)}
+              disabled={page * ITEMS_PER_PAGE >= totalProducts}
+              style={{ background: 'white', color: 'var(--text)', border: '1px solid var(--border)', padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', opacity: page * ITEMS_PER_PAGE >= totalProducts ? 0.5 : 1 }}
+            >
+              Next <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -350,9 +450,9 @@ const Dashboard = () => {
           style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
         >
           <div
-            className="card"
+            className="glass-panel"
             onClick={(e) => e.stopPropagation()}
-            style={{ width: '540px', maxWidth: '92vw', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}
+            style={{ width: '540px', maxWidth: '92vw', position: 'relative', maxHeight: '90vh', overflowY: 'auto', background: 'rgba(255, 255, 255, 0.95)' }}
           >
             <button onClick={() => setExplainProduct(null)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--muted)' }} aria-label="Close">
               <X size={20} />
@@ -361,19 +461,18 @@ const Dashboard = () => {
             <h2 style={{ marginBottom: '0.25rem' }}>Price Logic Breakdown</h2>
             <p style={{ color: 'var(--muted)', fontSize: '0.95rem', marginBottom: '1.5rem', fontWeight: 600 }}>{explainProduct.name}</p>
 
-            {/* Pricing formula */}
+            {/* AI Pricing formula section */}
             <div style={{ background: '#f8fafc', border: '1px solid var(--border)', padding: '1.25rem', borderRadius: '10px', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1rem', color: 'var(--secondary)' }}>
+                 <p style={{ fontWeight: 700, margin: 0 }}>✨ AI Optimized Pricing</p>
+              </div>
               <Row label="Base Price" value={formatPrice(explainProduct.base_price)} />
-              <Row label="Demand Factor" value={`+${(explainProduct.demand_factor * 100).toFixed(1)}%`} color="var(--accent)" />
               <Row
-                label="Stock Factor"
-                value={explainProduct.stock_factor >= 0
-                  ? `+${(explainProduct.stock_factor * 100).toFixed(1)}%`
-                  : `${(explainProduct.stock_factor * 100).toFixed(1)}%`}
-                color={explainProduct.stock_factor > 0 ? 'var(--danger)' : 'var(--success)'}
+                label="AI Markup Prediction"
+                value={explainProduct.ai_markup_pct >= 0 ? `+${explainProduct.ai_markup_pct}%` : `${explainProduct.ai_markup_pct}%`}
+                color={explainProduct.ai_markup_pct > 0 ? 'var(--danger)' : 'var(--success)'}
               />
-              <Row label="Decay Factor" value={`−${(explainProduct.decay_factor * 100).toFixed(1)}%`} color="var(--muted)" />
-              <Row label="Combined Multiplier" value={`× ${explainProduct.multiplier}`} color="var(--secondary)" />
+              <Row label="Overall Multiplier" value={`× ${explainProduct.multiplier}`} color="var(--primary)" />
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between', fontSize: '1.05rem' }}>
                 <span style={{ fontWeight: 700 }}>Current Price</span>
                 <span style={{ color: 'var(--primary)', fontWeight: 700 }}>{formatPrice(explainProduct.current_price)}</span>
@@ -383,7 +482,7 @@ const Dashboard = () => {
             {/* Stock + event stats */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
               <StatBox label="Stock Remaining" value={explainProduct.stock} color={explainProduct.stock === 0 ? 'var(--danger)' : explainProduct.stock < 10 ? '#f59e0b' : 'var(--success)'} />
-              <StatBox label="Stock Adj." value={`${explainProduct.stock_factor_pct >= 0 ? '+' : ''}${explainProduct.stock_factor_pct}%`} color={explainProduct.stock_factor > 0 ? 'var(--danger)' : 'var(--success)'} />
+              <StatBox label="AI Target Adj." value={`${explainProduct.ai_markup_pct >= 0 ? '+' : ''}${explainProduct.ai_markup_pct}%`} color={explainProduct.ai_markup_pct > 0 ? 'var(--danger)' : 'var(--success)'} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
               <StatBox label="Views" value={explainProduct.views ?? 0} />
@@ -392,7 +491,7 @@ const Dashboard = () => {
             </div>
 
             <div style={{ padding: '0.9rem', border: '1px dashed var(--border)', borderRadius: '8px', fontSize: '0.78rem', color: 'var(--muted)', lineHeight: 1.6 }}>
-              price = base × (1 + <strong>{explainProduct.demand_factor}</strong> [demand] + <strong>{explainProduct.stock_factor}</strong> [stock] − <strong>{explainProduct.decay_factor}</strong> [decay])
+              <strong>AI Insight:</strong> The Machine Learning model predicts a price multiplier of <strong>{explainProduct.multiplier}</strong> by simultaneously analyzing the ratio of {explainProduct.clicks} clicks, {explainProduct.views} views, and scarcity of {explainProduct.stock} remaining units.
             </div>
           </div>
         </div>

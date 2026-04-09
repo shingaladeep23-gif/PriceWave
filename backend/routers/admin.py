@@ -18,12 +18,37 @@ redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 from datetime import datetime, timedelta
 
+import httpx
+
+async def notify_discord(title: str, description: str, color: int = 0xff0000):
+    webhook_url = getattr(settings, "DISCORD_WEBHOOK_URL", None)
+    if not webhook_url: return
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(webhook_url, json={
+                "embeds": [{"title": title, "description": description, "color": color}]
+            })
+    except Exception as e:
+        print("Webhook failed:", e)
+
 @router.get("/dashboard/stats")
 async def get_dashboard_stats(
+    skip: int = 0,
+    limit: int = 50,
+    search: str = None,
     db: AsyncSession = Depends(get_db),
     admin: db_models.User = Depends(get_current_admin)
 ):
-    result = await db.execute(select(db_models.Product).limit(50))
+    query = select(db_models.Product)
+    if search:
+        query = query.where(db_models.Product.name.ilike(f"%{search}%"))
+    
+    # Get total count
+    count_query = select(func.count()).select_from(query.subquery())
+    total_count = await db.scalar(count_query)
+
+    query = query.offset(skip).limit(limit)
+    result = await db.execute(query)
     products = result.scalars().all()
 
     purchase_result = await db.execute(
@@ -35,10 +60,12 @@ async def get_dashboard_stats(
 
     stats = []
     for product in products:
-        clicks = await redis_client.get(f"product:{product.id}:clicks") or 0
-        views  = await redis_client.get(f"product:{product.id}:views")  or 0
-        demand_factor = await pricing_engine.get_demand_factor(product.id)
-        stock_factor  = pricing_engine.get_stock_factor(product.stock)
+        multiplier, clicks, views = await pricing_engine.get_ai_prediction(product.id, product.stock, product.base_price)
+        
+        # Calculate a pseudo demand score for the dashboard based on clicks vs views
+        ctr = clicks / (views + 1)
+        pseudo_demand_score = min(100, int((clicks / 5000 * 50) + (ctr * 50)))
+        
         stats.append({
             "product_id":   product.id,
             "name":         product.name,
@@ -47,11 +74,16 @@ async def get_dashboard_stats(
             "purchases":    purchase_counts.get(product.id, 0),
             "current_price": product.current_price,
             "base_price":   product.base_price,
-            "demand_score": round(demand_factor * 100, 2),
+            "demand_score": pseudo_demand_score,
             "stock":        product.stock,
-            "stock_factor": round(stock_factor * 100, 1),
+            "stock_factor": round((multiplier - 1.0) * 100, 1), # Reusing stock_factor field to display total AI markup
         })
-    return stats
+    return {
+        "items": stats,
+        "total": total_count,
+        "skip": skip,
+        "limit": limit
+    }
 
 @router.post("/pricing/recalculate")
 async def recalculate_prices(
@@ -70,6 +102,7 @@ async def recalculate_prices(
         "type": "price_update",
         "updates": updates,
     })
+    await notify_discord("Prices Recalculated", f"Recalculated prices for {len(updates)} products.", 0x00ff00)
 
     return {"status": "success", "updates": updates}
 
@@ -170,10 +203,7 @@ async def explain_pricing(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    demand_factor = await pricing_engine.get_demand_factor(product.id)
-    stock_factor  = pricing_engine.get_stock_factor(product.stock)
-    decay_factor  = 0.02
-    multiplier    = 1 + demand_factor + stock_factor - decay_factor
+    multiplier, clicks, views = await pricing_engine.get_ai_prediction(product.id, product.stock, product.base_price)
 
     events_result = await db.execute(
         select(db_models.Event.event_type, func.count(db_models.Event.id))
@@ -188,16 +218,13 @@ async def explain_pricing(
         "base_price":    product.base_price,
         "current_price": product.current_price,
         "stock":         product.stock,
-        "demand_factor": round(demand_factor, 4),
-        "demand_score":  round(demand_factor * 100, 2),
-        "stock_factor":  round(stock_factor, 4),
-        "stock_factor_pct": round(stock_factor * 100, 1),
-        "decay_factor":  decay_factor,
         "multiplier":    round(multiplier, 4),
-        "views":         event_counts.get(db_models.EventType.VIEW, 0),
-        "clicks":        event_counts.get(db_models.EventType.CLICK, 0),
+        "ai_markup_pct": round((multiplier - 1.0) * 100, 1),
+        "views":         int(views),
+        "clicks":        int(clicks),
         "add_to_cart":   event_counts.get(db_models.EventType.ADD_TO_CART, 0),
         "purchases":     event_counts.get(db_models.EventType.PURCHASE, 0),
+        "is_ai":         True
     }
 
 @router.post("/inventory/restock")
@@ -219,8 +246,43 @@ async def restock_inventory(
         "type": "inventory_update",
         "restocked": restocked,
     })
+    await notify_discord("Mass Restock", f"Restocked {len(restocked)} products.", 0x00ff00)
 
     return {"status": "success", "restocked_count": len(restocked), "products": restocked}
+
+@router.post("/inventory/restock/{product_id}")
+async def restock_single(
+    product_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin: db_models.User = Depends(get_current_admin)
+):
+    result = await db.execute(select(db_models.Product).where(db_models.Product.id == product_id))
+    product = result.scalars().first()
+    if not product: raise HTTPException(status_code=404, detail="Product not found")
+    
+    added = random.randint(20, 50)
+    product.stock = min(product.stock + added, 200)
+    await db.commit()
+    await manager.broadcast({"type": "inventory_update", "restocked": [{"product_id": product.id, "name": product.name, "new_stock": product.stock}]})
+    await notify_discord("Single Product Restocked", f"{product.name} restocked to {product.stock} units.", 0x00ff00)
+    return {"status": "success", "product": {"product_id": product.id, "new_stock": product.stock}}
+
+@router.post("/pricing/override/{product_id}")
+async def override_price(
+    product_id: int,
+    new_price: float,
+    db: AsyncSession = Depends(get_db),
+    admin: db_models.User = Depends(get_current_admin)
+):
+    result = await db.execute(select(db_models.Product).where(db_models.Product.id == product_id))
+    product = result.scalars().first()
+    if not product: raise HTTPException(status_code=404, detail="Product not found")
+    
+    product.current_price = new_price
+    await db.commit()
+    await manager.broadcast({"type": "price_update", "updates": [{"product_id": product.id, "new_price": new_price}]})
+    await notify_discord("Manual Price Override", f"{product.name} price forcefully set to ${new_price}", 0xffa500)
+    return {"status": "success", "product_id": product.id, "new_price": new_price}
 
 @router.get("/inventory/status")
 async def get_inventory_status(
